@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WA Number Checker</title>
+<style>
+:root {
+  --bg:#080d12;
+  --panel:#101a22;
+  --border:#22333d;
+  --green:#19e68c;
+  --text:#e8f4ef;
+  --muted:#82969a;
+}
+* { box-sizing:border-box; }
+body {
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:Arial,sans-serif;
+}
+header {
+  padding:24px 18px;
+  border-bottom:1px solid var(--border);
+  background:#0b1319;
+}
+.logo {
+  color:var(--green);
+  font-size:24px;
+  font-weight:800;
+}
+header p { color:var(--muted); font-size:13px; }
+main { max-width:900px; margin:auto; padding:20px 14px; }
+h2 { font-size:17px; margin:0 0 15px; }
+.panel {
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:18px;
+  margin-bottom:18px;
+}
+label { display:block; margin-bottom:9px; font-size:13px; }
+textarea {
+  width:100%;
+  height:180px;
+  resize:vertical;
+  background:#080f14;
+  color:var(--text);
+  border:1px solid #2a4049;
+  border-radius:10px;
+  padding:14px;
+  font-size:14px;
+  outline:none;
+}
+textarea:focus { border-color:var(--green); }
+button {
+  border:1px solid var(--border);
+  background:#17252e;
+  color:var(--text);
+  padding:11px 14px;
+  border-radius:9px;
+  font-weight:700;
+  cursor:pointer;
+}
+button:active { transform:scale(.98); }
+.primary {
+  background:var(--green);
+  color:#062015;
+  border-color:var(--green);
+}
+.actions {
+  display:flex;
+  flex-wrap:wrap;
+  gap:9px;
+  margin-top:13px;
+}
+.stats {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:10px;
+  margin-bottom:18px;
+}
+.stat {
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:14px 10px;
+}
+.stat strong { display:block; font-size:24px; }
+.stat span { font-size:11px; color:var(--muted); }
+.results-head {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  margin-bottom:12px;
+}
+.item {
+  border:1px solid var(--border);
+  border-radius:11px;
+  padding:13px;
+  margin-top:9px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+}
+.number { font-weight:bold; overflow-wrap:anywhere; }
+.status { font-size:11px; color:var(--muted); margin-top:5px; }
+.item-actions { display:flex; flex-wrap:wrap; gap:6px; }
+.item-actions button { padding:9px; font-size:12px; }
+.note {
+  font-size:12px;
+  color:var(--muted);
+  line-height:1.7;
+}
+.empty { color:var(--muted); text-align:center; padding:28px 0; }
+footer { text-align:center; padding:20px; color:var(--muted); font-size:12px; }
+@media(max-width:520px) {
+  .item { align-items:flex-start; flex-direction:column; }
+  .item-actions { width:100%; }
+  .item-actions button { flex:1; }
+  .stat strong { font-size:20px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">◉ WA CHECKER</div>
+  <p>Bulk number manager · Manual verification</p>
+</header>
+
+<main>
+  <section class="panel">
+    <h2>01 / Input Numbers</h2>
+    <label for="numbers">Enter phone numbers, one per line</label>
+    <textarea id="numbers"
+      placeholder="01712345678&#10;+8801812345678&#10;8801912345678"></textarea>
+    <div class="actions">
+      <button class="primary" id="process">Process Numbers ↗</button>
+      <button id="clear">Clear All</button>
+    </div>
+    <p class="note">
+      Bangladesh numbers supported. International numbers with a country
+      code are also accepted. Only valid-looking numbers are listed.
+    </p>
+  </section>
+
+  <div class="stats">
+    <div class="stat"><strong id="total">0</strong><span>TOTAL</span></div>
+    <div class="stat"><strong id="checked">0</strong><span>OPENED / CHECKED*</span></div>
+    <div class="stat"><strong id="remaining">0</strong><span>REMAINING</span></div>
+  </div>
+
+  <section class="panel">
+    <div class="results-head">
+      <h2>02 / Results</h2>
+      <button id="export">Export CSV ↓</button>
+    </div>
+    <div class="actions" style="margin:0 0 12px">
+      <button id="copy">Copy Numbers</button>
+      <button id="removeDup">Remove Duplicates</button>
+    </div>
+    <div id="results">
+      <div class="empty">Your numbers will appear here.</div>
+    </div>
+  </section>
+
+  <p class="note">
+    *Opening WhatsApp is not proof that an account exists. Check the result
+    in WhatsApp yourself. This page does not query WhatsApp's private
+    account database. Numbers stay in this page and are not uploaded.
+  </p>
+</main>
+
+<footer>WA CHECKER · Built for personal number management</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+let entries = [];
+
+function normalize(raw) {
+  let s = raw.trim();
+  if (!s) return null;
+
+  // Remove common formatting characters.
+  s = s.replace(/[\s\-().]/g, "");
+
+  // Convert Bangladesh local numbers to international format.
+  if (/^01\d{9}$/.test(s)) s = "88" + s;
+  else if (/^8801\d{9}$/.test(s)) {}
+  else if (/^\+8801\d{9}$/.test(s)) s = s.slice(1);
+  else if (/^00\d{8,14}$/.test(s)) s = s.slice(2);
+  else if (/^\+\d{8,15}$/.test(s)) s = s.slice(1);
+  else if (/^\d{8,15}$/.test(s)) {}
+  else return null;
+
+  if (!/^\d{8,15}$/.test(s)) return null;
+  return { number: s, checked: false };
+}
+
+function render() {
+  $("total").textContent = entries.length;
+  $("checked").textContent = entries.filter(x => x.checked).length;
+  $("remaining").textContent = entries.filter(x => !x.checked).length;
+
+  const root = $("results");
+  root.replaceChildren();
+
+  if (!entries.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.textContent = "No numbers yet. Paste some numbers above.";
+    root.append(empty);
+    return;
+  }
+
+  entries.forEach((entry, index) => {
+    const row = document.createElement("div");
+    row.className = "item";
+
+    const info = document.createElement("div");
+    const number = document.createElement("div");
+    number.className = "number";
+    number.textContent = "+" + entry.number;
+
+    const status = document.createElement("div");
+    status.className = "status";
+    status.textContent = entry.checked
+      ? "Opened · Manual verification still required"
+      : "Not opened yet";
+
+    info.append(number, status);
+
+    const controls = document.createElement("div");
+    controls.className = "item-actions";
+
+    const open = document.createElement("button");
+    open.className = "primary";
+    open.textContent = "Open WA ↗";
+    open.addEventListener("click", () => {
+      // Open a user-selected number in WhatsApp.
+      window.open(
+        "https://wa.me/" + entry.number,
+        "_blank",
+        "noopener,noreferrer"
+      );
+      entry.checked = true;
+      render();
+    });
+
+    const copy = document.createElement("button");
+    copy.textContent = "Copy";
+    copy.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText("+" + entry.number);
+        copy.textContent = "Copied!";
+        setTimeout(() => copy.textContent = "Copy", 1200);
+      } catch {
+        prompt("Copy this number:", "+" + entry.number);
+      }
+    });
+
+    const remove = document.createElement("button");
+    remove.textContent = "✕";
+    remove.title = "Remove number";
+    remove.addEventListener("click", () => {
+      entries.splice(index, 1);
+      render();
+    });
+
+    controls.append(open, copy, remove);
+    row.append(info, controls);
+    root.append(row);
+  });
+}
+
+$("process").addEventListener("click", () => {
+  const lines = $("numbers").value.split(/[\n,;]+/);
+  const valid = [];
+  let invalid = 0;
+
+  for (const line of lines) {
+    const item = normalize(line);
+    if (item) valid.push(item);
+    else if (line.trim()) invalid++;
+  }
+
+  const existing = new Set(entries.map(x => x.number));
+  let added = 0;
+
+  for (const item of valid) {
+    if (!existing.has(item.number)) {
+      entries.push(item);
+      existing.add(item.number);
+      added++;
+    }
+  }
+
+  render();
+  $("numbers").value = "";
+  alert(`Added: ${added}\nInvalid numbers: ${invalid}`);
+});
+
+$("clear").addEventListener("click", () => {
+  if (confirm("Clear all numbers?")) {
+    entries = [];
+    $("numbers").value = "";
+    render();
+  }
+});
+
+$("removeDup").addEventListener("click", () => {
+  const before = entries.length;
+  entries = [...new Map(entries.map(x => [x.number, x])).values()];
+  render();
+  alert(`Removed ${before - entries.length} duplicate(s).`);
+});
+
+$("copy").addEventListener("click", async () => {
+  if (!entries.length) return alert("No numbers to copy.");
+  const text = entries.map(x => "+" + x.number).join("\n");
+  try {
+    await navigator.clipboard.writeText(text);
+    alert("Numbers copied!");
+  } catch {
+    prompt("Copy your numbers:", text);
+  }
+});
+
+$("export").addEventListener("click", () => {
+  if (!entries.length) return alert("No results to export.");
+  const csv = [
+    ["Number", "Opened in WhatsApp", "Account verified"],
+    ...entries.map(x => [
+      "+" + x.number,
+      x.checked ? "Yes" : "No",
+      "Not verified"
+    ])
+  ].map(row => row.map(v =>
+    '"' + String(v).replace(/"/g, '""') + '"'
+  ).join(",")).join("\r\n");
+
+  const blob = new Blob(["\uFEFF" + csv], {
+    type: "text/csv;charset=utf-8;"
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "wa-numbers.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+render();
+</script>
+</body>
+</html>
